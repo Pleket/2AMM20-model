@@ -5,22 +5,25 @@ import torchvision
 from torchvision.models import resnet50, ResNet50_Weights
 import numpy as np
 import matplotlib.pyplot as plt
+import torchvision.transforms.v2 as transforms
+import random
 
 import os
 import tarfile
 from PIL import Image
 
-def train_resnet50(resized_directory):
+def train_resnet50(directory):
     num_classes = 200
     input_shape = (224, 224, 3)  # RGB images
 
-    (train_loader, test_loader) = preprocess()
+    (train_loader, test_loader) = preprocess(directory)
     
     # Use GPU if available
     device = torch.device("cuda" if torch.cuda.is_available() 
                                   else "cpu")
     
-    model = resnet50(weights=ResNet50_Weights.DEFAULT, input_shape=input_shape)
+    #model = resnet50(weights=ResNet50_Weights.DEFAULT, input_shape=input_shape)
+    model = resnet50(weights=ResNet50_Weights.DEFAULT)
 
     # Freeze the layers except the last 4 layers
     for param in model.parameters():
@@ -36,7 +39,7 @@ def train_resnet50(resized_directory):
     optimizer = optim.Adam(model.fc.parameters(), lr=0.003)
     model.to(device)
 
-    epochs = 1
+    epochs = 2
     steps = 0
     running_loss = 0
     print_every = 10
@@ -82,43 +85,44 @@ def train_resnet50(resized_directory):
     plt.plot(test_losses, label='Validation loss')
     plt.legend(frameon=False)
     plt.show()
+    
+def extract(tgz_file,target_directory):
+    with tarfile.open(tgz_file, 'r:gz') as tar:
+        tar.extractall(path=target_directory)
 
-def preprocess():
-    #resize to 224x224 pixels
-    target_directory = 'C:/Users/Gebruiker/OneDrive - TU Eindhoven/TUe/Master/2AMM20/CUB_200_2011/images'
-    #target_directory = 'your target directory'
-    resized_directory = 'C:/Users/Gebruiker/OneDrive - TU Eindhoven/TUe/Master/2AMM20/CUB_200_2011_resized'
-    #resized_directory = 'your resized directory'
-    # target_size = (224, 224)
-    # # Iterate through all images in the dataset and resize them
-    # # Iterate through the subdirectories (one for each class)
-    # for class_dir in os.listdir(target_directory):
-    #     class_path = os.path.join(target_directory, class_dir)
-    #     if os.path.isdir(class_path):
-    #         for filename in os.listdir(class_path):
-    #             if filename.endswith('.jpg'):  # Assuming images are in JPEG format
-    #                 image_path = os.path.join(class_path, filename)
-    #                 img = Image.open(image_path)
-    #                 img = img.resize(target_size, Image.ANTIALIAS)
-                    
-    #                 # Save the resized image to the destination directory
-    #                 destination_path = os.path.join(resized_directory, class_dir, filename)
-    #                 os.makedirs(os.path.dirname(destination_path), exist_ok=True)
-    #                 img.save(destination_path)
-
-    transforms = transforms.Compose([transforms.Resize(224),
+def preprocess(directory, select_percentage = 100):
+    transform = transforms.Compose([transforms.Resize((224,224)),
                                    transforms.ToTensor(),
                                    transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225])
                                    ])
     
     batch_size = 32
+    
+    data = torchvision.datasets.ImageFolder(root=directory, transform=transform)
+    
+    if select_percentage != 100:
+        # Create a dictionary to store indices of samples from each class
+        class_indices = {}
+        for idx, (directory, class_label) in enumerate(data.imgs):
+            if class_label not in class_indices:
+                class_indices[class_label] = []
+            class_indices[class_label].append(idx)
 
-    full_data = torchvision.datasets.ImageFolder(root=target_directory, transform=transforms)
+        selected_indices = []
+        
+        # Randomly select a percentage of data from each class
+        for class_label, indices in class_indices.items():
+            num_samples = len(indices)
+            num_samples_to_select = int(num_samples * (select_percentage / 100.0))
+            selected_indices.extend(random.sample(indices, num_samples_to_select))
+
+        # Create a Subset of the dataset using the selected indices
+        data = torch.utils.data.Subset(data, selected_indices)
 
     # Split the dataset into training and validation sets
-    train_size = int(0.8 * len(full_data))
-    val_size = len(full_data) - train_size
-    train_dataset, val_dataset = random_split(full_data, [train_size, val_size])
+    train_size = int(0.8 * len(data))
+    val_size = len(data) - train_size
+    train_dataset, val_dataset = random_split(data, [train_size, val_size])
 
     return (torch.utils.data.DataLoader(
             train_dataset, 
@@ -128,3 +132,9 @@ def preprocess():
             val_dataset, 
             batch_size=batch_size, 
             shuffle=False))
+    
+#extract('C:/Users/Gebruiker/OneDrive - TU Eindhoven/TUe/Master/2AMM20/waterbird_complete95_forest2water2.tar.gz','C:/Users/Gebruiker/OneDrive - TU Eindhoven/TUe/Master/2AMM20')
+#train_loader, val_loader = preprocess('C:/Users/Gebruiker/OneDrive - TU Eindhoven/TUe/Master/2AMM20/waterbird_complete95_forest2water2',select_percentage=5)
+train_resnet50('C:/Users/Gebruiker/OneDrive - TU Eindhoven/TUe/Master/2AMM20/waterbird_complete95_forest2water2')
+
+
