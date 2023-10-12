@@ -1,6 +1,6 @@
 from torch import nn, optim
 import torch
-from torch.utils.data import Dataset, DataLoader, random_split
+from torch.utils.data import DataLoader, random_split
 import torchvision
 from torchvision.models import resnet50, ResNet50_Weights
 import numpy as np
@@ -12,12 +12,8 @@ import os
 import tarfile
 from PIL import Image
 
-def train_resnet50(directory):
-    num_classes = 200
-    input_shape = (224, 224, 3)  # RGB images
-
-    (train_loader, test_loader) = preprocess(directory)
-    
+def train_resnet50(train_loader, test_loader, model_path, epochs, learning_rate):
+    num_classes = 200     
     # Use GPU if available
     device = torch.device("cuda" if torch.cuda.is_available() 
                                   else "cpu")
@@ -36,13 +32,12 @@ def train_resnet50(directory):
                                     nn.LogSoftmax(dim=1))
     
     criterion = nn.CrossEntropyLoss()
-    optimizer = optim.Adam(model.fc.parameters(), lr=0.003)
+    optimizer = optim.Adam(model.fc.parameters(), lr=learning_rate)
     model.to(device)
 
-    epochs = 2
     steps = 0
     running_loss = 0
-    print_every = 10
+    print_every = len(train_loader)
     train_losses, test_losses = [], []
     for epoch in range(epochs):
         for inputs, labels in train_loader:
@@ -78,7 +73,7 @@ def train_resnet50(directory):
                     f"Test accuracy: {accuracy/len(test_loader):.3f}")
                 running_loss = 0
                 model.train()
-    torch.save(model, 'aerialmodel.pth')
+    torch.save(model, model_path)
 
     # Plot the training and validation losses
     plt.plot(train_losses, label='Training loss')
@@ -90,13 +85,11 @@ def extract(tgz_file,target_directory):
     with tarfile.open(tgz_file, 'r:gz') as tar:
         tar.extractall(path=target_directory)
 
-def preprocess(directory, select_percentage = 100):
+def preprocess(directory, batch_size, select_percentage = 100):
     transform = transforms.Compose([transforms.Resize((224,224)),
                                    transforms.ToTensor(),
                                    transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225])
                                    ])
-    
-    batch_size = 32
     
     data = torchvision.datasets.ImageFolder(root=directory, transform=transform)
     
@@ -132,9 +125,29 @@ def preprocess(directory, select_percentage = 100):
             val_dataset, 
             batch_size=batch_size, 
             shuffle=False))
-    
-#extract('C:/Users/Gebruiker/OneDrive - TU Eindhoven/TUe/Master/2AMM20/waterbird_complete95_forest2water2.tar.gz','C:/Users/Gebruiker/OneDrive - TU Eindhoven/TUe/Master/2AMM20')
-#train_loader, val_loader = preprocess('C:/Users/Gebruiker/OneDrive - TU Eindhoven/TUe/Master/2AMM20/waterbird_complete95_forest2water2',select_percentage=5)
-train_resnet50('C:/Users/Gebruiker/OneDrive - TU Eindhoven/TUe/Master/2AMM20/waterbird_complete95_forest2water2')
+
+def get_misclassified_images(model, train_loader):
+    model.eval()
+    misclassified_images = []
+    misclassified_labels = []
+    correct_labels = []
+    with torch.no_grad():
+        for images, labels in train_loader:
+            outputs = model(images)
+            predicted_labels = torch.argmax(outputs, dim=1)
+            misclassified_mask = predicted_labels != labels
+            misclassified_images.extend(images[misclassified_mask])
+            misclassified_labels.extend(predicted_labels[misclassified_mask])
+            correct_labels.extend(labels[misclassified_mask])
+    print("length of misclassified images: ",len(misclassified_images))
+
+    return misclassified_images, misclassified_labels, correct_labels
 
 
+path_to_data = 'C:/Users/Gebruiker/OneDrive - TU Eindhoven/TUe/Master/2AMM20/waterbird_complete95_forest2water2'
+
+train_loader, test_loader = preprocess(path_to_data ,batch_size = 32, select_percentage=20)
+train_resnet50(train_loader, test_loader, 'JTT_one', epochs = 5, learning_rate = 0.003)
+
+model = torch.load('JTT_one')
+misclassified_images, misclassified_labels, correct_labels = get_misclassified_images(model, train_loader)
