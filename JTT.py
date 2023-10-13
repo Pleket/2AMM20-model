@@ -93,24 +93,30 @@ def preprocess(directory, batch_size, select_percentage = 100):
     
     data = torchvision.datasets.ImageFolder(root=directory, transform=transform)
     
-    if select_percentage != 100:
-        # Create a dictionary to store indices of samples from each class
-        class_indices = {}
-        for idx, (directory, class_label) in enumerate(data.imgs):
-            if class_label not in class_indices:
-                class_indices[class_label] = []
-            class_indices[class_label].append(idx)
+    # if select_percentage != 100:
+    #     # Create a dictionary to store indices of samples from each class
+    #     class_indices = {}
+    #     for idx, (directory, class_label) in enumerate(data.imgs):
+    #         if class_label not in class_indices:
+    #             class_indices[class_label] = []
+    #         class_indices[class_label].append(idx)
 
-        selected_indices = []
+    #     selected_indices = []
         
-        # Randomly select a percentage of data from each class
-        for class_label, indices in class_indices.items():
-            num_samples = len(indices)
-            num_samples_to_select = int(num_samples * (select_percentage / 100.0))
-            selected_indices.extend(random.sample(indices, num_samples_to_select))
+    #     # Randomly select a percentage of data from each class
+    #     for class_label, indices in class_indices.items():
+    #         num_samples = len(indices)
+    #         num_samples_to_select = int(num_samples * (select_percentage / 100.0))
+    #         selected_indices.extend(random.sample(indices, num_samples_to_select))
 
-        # Create a Subset of the dataset using the selected indices
-        data = torch.utils.data.Subset(data, selected_indices)
+    #     # Create a Subset of the dataset using the selected indices
+    #     data = torch.utils.data.Subset(data, selected_indices)
+
+    if select_percentage != 100:
+        indices = list(range(len(data)))
+        random.shuffle(indices)
+        subset_indices = indices[:int(len(data) * (select_percentage / 100.0))]
+        data = torch.utils.data.Subset(data, subset_indices)
 
     # Split the dataset into training and validation sets
     train_size = int(0.8 * len(data))
