@@ -7,13 +7,15 @@ import numpy as np
 import matplotlib.pyplot as plt
 import torchvision.transforms.v2 as transforms
 import random
+import pandas as pd 
+import shutil
 
 import os
 import tarfile
 from PIL import Image
 
 def train_resnet50(train_loader, test_loader, model_path, epochs, learning_rate):
-    num_classes = 200     
+    num_classes = 2     
     # Use GPU if available
     device = torch.device("cuda" if torch.cuda.is_available() 
                                   else "cpu")
@@ -93,25 +95,6 @@ def preprocess(directory, batch_size, select_percentage = 100):
     
     data = torchvision.datasets.ImageFolder(root=directory, transform=transform)
     
-    # if select_percentage != 100:
-    #     # Create a dictionary to store indices of samples from each class
-    #     class_indices = {}
-    #     for idx, (directory, class_label) in enumerate(data.imgs):
-    #         if class_label not in class_indices:
-    #             class_indices[class_label] = []
-    #         class_indices[class_label].append(idx)
-
-    #     selected_indices = []
-        
-    #     # Randomly select a percentage of data from each class
-    #     for class_label, indices in class_indices.items():
-    #         num_samples = len(indices)
-    #         num_samples_to_select = int(num_samples * (select_percentage / 100.0))
-    #         selected_indices.extend(random.sample(indices, num_samples_to_select))
-
-    #     # Create a Subset of the dataset using the selected indices
-    #     data = torch.utils.data.Subset(data, selected_indices)
-
     if select_percentage != 100:
         indices = list(range(len(data)))
         random.shuffle(indices)
@@ -150,10 +133,50 @@ def get_misclassified_images(model, train_loader):
     return misclassified_images, misclassified_labels, correct_labels
 
 
-path_to_data = 'C:/Users/Gebruiker/OneDrive - TU Eindhoven/TUe/Master/2AMM20/waterbird_complete95_forest2water2'
+def organize_bird_images(csv_file, image_dir, output_dir):
+    # Create output directories for landbirds and waterbirds
+    landbird_dir = os.path.join(output_dir, 'landbirds')
+    waterbird_dir = os.path.join(output_dir, 'waterbirds')
+    
+    os.makedirs(landbird_dir, exist_ok=True)
+    os.makedirs(waterbird_dir, exist_ok=True)
+
+    # Read the CSV file with image labels
+    df = pd.read_csv(csv_file)
+
+    for index, row in df.iterrows():
+        image_filename = row['img_filename']
+        label = row['y'] 
+        
+        image_name = os.path.basename(image_filename)
+
+        # Define the destination folder based on the label
+        if label == 0:
+            destination = os.path.join(landbird_dir, image_name)
+        elif label == 1:
+            destination = os.path.join(waterbird_dir, image_name)
+        else:
+            print(f"Invalid label for {image_name}. Skipping.")
+            continue
+
+        source_path = os.path.join(image_dir, image_filename)
+        
+        # Copy or move the image to the appropriate folder
+        shutil.copy(source_path, destination)  # Use shutil.move() to move instead of copy
+
+    print("Organized images into 'landbirds' and 'waterbirds' folders.")
+
+#first we make a new directory where the images are organized into two classes
+#landbirds and waterbirds
+csv_file = 'C:/Users/Gebruiker/OneDrive - TU Eindhoven/TUe/Master/2AMM20/waterbird_complete95_forest2water2/metadata.csv'  # Provide the path to your CSV file
+image_dir = 'C:/Users/Gebruiker/OneDrive - TU Eindhoven/TUe/Master/2AMM20/waterbird_complete95_forest2water2'  # Provide the path to your image directory
+output_dir = 'C:/Users/Gebruiker/OneDrive - TU Eindhoven/TUe/Master/2AMM20/waterbird_complete95_2class'  # Specify the output directory
+#organize_bird_images(csv_file, image_dir, output_dir)
+
+path_to_data = 'C:/Users/Gebruiker/OneDrive - TU Eindhoven/TUe/Master/2AMM20/waterbird_complete95_2class'
 
 train_loader, test_loader = preprocess(path_to_data ,batch_size = 32, select_percentage=20)
 train_resnet50(train_loader, test_loader, 'JTT_one', epochs = 5, learning_rate = 0.003)
 
-model = torch.load('JTT_one')
-misclassified_images, misclassified_labels, correct_labels = get_misclassified_images(model, train_loader)
+#model = torch.load('JTT_one')
+#misclassified_images, misclassified_labels, correct_labels = get_misclassified_images(model, train_loader)
