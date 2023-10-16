@@ -1,6 +1,7 @@
+from math import floor, ceil
 from torch import nn, optim
 import torch
-from torch.utils.data import DataLoader, random_split
+from torch.utils.data import DataLoader, random_split, WeightedRandomSampler
 import torchvision
 from torchvision.models import resnet50, ResNet50_Weights
 import numpy as np
@@ -10,12 +11,11 @@ import random
 import pandas as pd 
 import shutil
 
-import os
 import tarfile
 from PIL import Image
 
 def train_resnet50(train_loader, test_loader, model_path, epochs, learning_rate):
-    num_classes = 2     
+    num_classes = 200
     # Use GPU if available
     device = torch.device("cuda" if torch.cuda.is_available() 
                                   else "cpu")
@@ -39,8 +39,9 @@ def train_resnet50(train_loader, test_loader, model_path, epochs, learning_rate)
 
     steps = 0
     running_loss = 0
-    print_every = len(train_loader)
+    print_every = ceil(len(train_loader) / 5)
     train_losses, test_losses = [], []
+    print("We're training with ", len(train_loader), " batches and ", len(train_loader) * 32, " images.")
     for epoch in range(epochs):
         for inputs, labels in train_loader:
             steps += 1
@@ -87,6 +88,13 @@ def extract(tgz_file,target_directory):
     with tarfile.open(tgz_file, 'r:gz') as tar:
         tar.extractall(path=target_directory)
 
+def select_fraction(data, select_percentage):
+    print("The initial size of the data is ", len(data))
+    indices = list(range(len(data)))
+    random.shuffle(indices)
+    subset_indices = indices[:int(len(data) * (select_percentage / 100.0))]
+    return torch.utils.data.Subset(data, subset_indices)
+
 def preprocess(directory, batch_size, select_percentage = 100):
     transform = transforms.Compose([transforms.Resize((224,224)),
                                    transforms.ToTensor(),
@@ -94,43 +102,43 @@ def preprocess(directory, batch_size, select_percentage = 100):
                                    ])
     
     data = torchvision.datasets.ImageFolder(root=directory, transform=transform)
-    
     if select_percentage != 100:
-        indices = list(range(len(data)))
-        random.shuffle(indices)
-        subset_indices = indices[:int(len(data) * (select_percentage / 100.0))]
-        data = torch.utils.data.Subset(data, subset_indices)
+        data = select_fraction(data, select_percentage)
 
     # Split the dataset into training and validation sets
     train_size = int(0.8 * len(data))
     val_size = len(data) - train_size
     train_dataset, val_dataset = random_split(data, [train_size, val_size])
 
-    return (torch.utils.data.DataLoader(
+    return (DataLoader(
             train_dataset, 
             batch_size=batch_size, 
             shuffle=True),
-        torch.utils.data.DataLoader(
+        DataLoader(
             val_dataset, 
             batch_size=batch_size, 
-            shuffle=False))
+            shuffle=False),
+        )
 
-def get_misclassified_images(model, train_loader):
-    model.eval()
-    misclassified_images = []
-    misclassified_labels = []
-    correct_labels = []
+def get_misclassified_weights(model, train_loader, lambda_up):
+    weights = []
     with torch.no_grad():
         for images, labels in train_loader:
+            device = torch.device("cuda" if torch.cuda.is_available() 
+                                  else "cpu")
+            images, labels = images.to(device), labels.to(device) # This line is required because otherwise, inputs and labels are on the CPU while the model is on the GPU
             outputs = model(images)
             predicted_labels = torch.argmax(outputs, dim=1)
             misclassified_mask = predicted_labels != labels
-            misclassified_images.extend(images[misclassified_mask])
-            misclassified_labels.extend(predicted_labels[misclassified_mask])
-            correct_labels.extend(labels[misclassified_mask])
-    print("length of misclassified images: ",len(misclassified_images))
+            for classification in misclassified_mask:
+                if classification:
+                    weights.append(lambda_up)
+                else:
+                    weights.append(1)
+    
+    return weights
 
-    return misclassified_images, misclassified_labels, correct_labels
+path_to_data = './data/waterbird_complete95_forest2water2'
 
 
 def organize_bird_images(csv_file, image_dir, output_dir):
@@ -173,10 +181,24 @@ image_dir = 'C:/Users/Gebruiker/OneDrive - TU Eindhoven/TUe/Master/2AMM20/waterb
 output_dir = 'C:/Users/Gebruiker/OneDrive - TU Eindhoven/TUe/Master/2AMM20/waterbird_complete95_2class'  # Specify the output directory
 #organize_bird_images(csv_file, image_dir, output_dir)
 
-path_to_data = 'C:/Users/Gebruiker/OneDrive - TU Eindhoven/TUe/Master/2AMM20/waterbird_complete95_2class'
 
-train_loader, test_loader = preprocess(path_to_data ,batch_size = 32, select_percentage=20)
-train_resnet50(train_loader, test_loader, 'JTT_one', epochs = 5, learning_rate = 0.003)
 
-#model = torch.load('JTT_one')
-#misclassified_images, misclassified_labels, correct_labels = get_misclassified_images(model, train_loader)
+
+path_to_data = './data/waterbird_complete95_forest2water2'
+
+train_loader, test_loader = preprocess(path_to_data ,batch_size = 32, select_percentage=5)
+train_resnet50(train_loader, test_loader, 'JTT_one', epochs = 1, learning_rate = 0.002)
+
+model = torch.load('JTT_one')
+# misclassified_images, misclassified_labels, correct_labels = get_misclassified_images(model, train_loader)
+weights = get_misclassified_weights(model, train_loader, 2.5)
+sampler = WeightedRandomSampler(weights, ceil(sum(weights)), replacement=True)
+train_loader_new = DataLoader(
+            train_loader.dataset, 
+            batch_size=32, 
+            sampler=sampler,
+            shuffle=False)
+print("Now, length of train_loader is ", len(train_loader_new))
+
+train_resnet50(train_loader_new, test_loader, 'JTT_two', epochs = 40, learning_rate = 0.002)
+model = torch.load('JTT_two')
