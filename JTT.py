@@ -208,7 +208,7 @@ output_dir = 'C:/Users/Gebruiker/OneDrive - TU Eindhoven/TUe/Master/2AMM20/water
 path_to_data = './data/waterbird_complete95_forest2water2'
 
 train_loader, test_loader = preprocess(path_to_data ,batch_size = 32, select_percentage=5)
-train_resnet50(train_loader, test_loader, 'JTT_one', epochs = 1, learning_rate = 0.002)
+train_resnet50(train_loader, test_loader, 'JTT_one', epochs = 60, learning_rate = 0.0001)
 
 model = torch.load('JTT_one')
 # misclassified_images, misclassified_labels, correct_labels = get_misclassified_images(model, train_loader)
@@ -221,5 +221,5 @@ train_loader_new = DataLoader(
             shuffle=False)
 print("Now, length of train_loader is ", len(train_loader_new))
 
-train_resnet50(train_loader_new, test_loader, 'JTT_two', epochs = 40, learning_rate = 0.002)
+train_resnet50(train_loader_new, test_loader, 'JTT_two', epochs = 60, learning_rate = 0.0001)
 model = torch.load('JTT_two')
