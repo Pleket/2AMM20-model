@@ -13,10 +13,24 @@ def cvar_value(p, v, reg):
 
 
 class loss(torch.nn.Module):
-    def __init__(self, v, reg):
+    def __init__(self, alpha, tol, maxiter, reg):
         super(loss, self).__init__()
-        self.v = v
+        self.alpha = alpha
+        self.tol = tol
+        self.maxiter = maxiter
         self.reg = reg
+
+    def response(self, v):
+        alpha = self.alpha
+        reg = self.reg
+        m = v.shape[0]
+
+        if self.reg>0:
+            if alpha == 1.0:
+                return torch.ones_like(v) / m
+            def p(eta):
+                x = (v-eta)/reg
+                return torch.min(torch.exp(x), torch.Tensor([1.0/alpha]).type(x.dtype))/m
 
     def forward(self, p):
         return cvar_value(p, self.v, self.reg)
