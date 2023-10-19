@@ -33,8 +33,14 @@ def train_resnet50(train_loader, test_loader, model_path, epochs, learning_rate)
                                     nn.Linear(512, num_classes),
                                     nn.LogSoftmax(dim=1))
     
+    # Simpler model alternative
+    # model.fc = nn.Sequential(nn.Dropout(0.2),
+    #                                 nn.Linear(2048, num_classes),
+    #                                 nn.LogSoftmax(dim=1))
+    
     criterion = nn.CrossEntropyLoss()
-    optimizer = optim.Adam(model.fc.parameters(), lr=learning_rate)
+    # optimizer = optim.Adam(model.fc.parameters(), lr=learning_rate)
+    optimizer = optim.SGD(model.fc.parameters(), lr=learning_rate, momentum=0.9) # This is the optimizer used by the paper
     model.to(device)
 
     steps = 0
