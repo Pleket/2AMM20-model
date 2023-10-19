@@ -39,7 +39,7 @@ def train_resnet50(train_loader, test_loader, model_path, epochs, learning_rate)
 
     steps = 0
     running_loss = 0
-    print_every = ceil(len(train_loader) / 5)
+    print_every = len(train_loader)
     train_losses, test_losses = [], []
     print("We're training with ", len(train_loader), " batches and ", len(train_loader) * 32, " images.")
     for epoch in range(epochs):
@@ -76,6 +76,21 @@ def train_resnet50(train_loader, test_loader, model_path, epochs, learning_rate)
                     f"Test accuracy: {accuracy/len(test_loader):.3f}")
                 running_loss = 0
                 model.train()
+        
+        train_accuracy = 0
+        # Now check the accuracy on the training data, to see if the model is overfitting
+        for inputs, labels in train_loader:
+            inputs, labels = inputs.to(device), labels.to(device)
+            logps = model.forward(inputs)
+            batch_loss = criterion(logps, labels)
+            
+            ps = torch.exp(logps)
+            top_p, top_class = ps.topk(1, dim=1)
+            equals = top_class == labels.view(*top_class.shape)
+            train_accuracy += torch.mean(equals.type(torch.FloatTensor)).item()
+        print(f"Epoch {epoch+1}/{epochs}.. "
+                f"train accuracy: {train_accuracy/len(train_loader):.3f}")
+    
     torch.save(model, model_path)
 
     # Plot the training and validation losses
