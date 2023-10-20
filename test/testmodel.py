@@ -1,12 +1,14 @@
 import torch
 import torch.nn as nn
-from test.losses import Loss
+from losses import Loss
+import torch.nn.functional as F
 
 
 n_samples = 100
 n_features = 2
 X = torch.randn(n_samples, n_features)
-y = torch.randn(n_samples)
+print(X.shape)
+y = torch.randn_like(torch.Tensor(n_samples))
 
 # Create a simple linear model
 class SimpleModel(nn.Module):
@@ -29,8 +31,10 @@ num_epochs = 10
 for epoch in range(num_epochs):
     # Forward pass
     outputs = model(X)
+    per_example_loss = F.cross_entropy(outputs, y, reduction='none')
+
     # Calculate the loss using the defined CVaR loss function
-    loss_value = cvar_loss(outputs, None)  # Pass None as p for simplicity
+    loss_value = cvar_loss(per_example_loss) 
 
     # Backpropagation and optimization
     optimizer.zero_grad()
