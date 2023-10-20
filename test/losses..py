@@ -41,9 +41,9 @@ def bisection(eta_min, eta_max, f, tol, maxiter):
     
     return (eta_min+eta_max)/2
 
-class loss(torch.nn.Module):
+class Loss(torch.nn.Module):
     def __init__(self, alpha = 0.1, reg = 0.01, tol = 1e-4, maxiter=50):
-        super(loss, self).__init__()
+        super(Loss, self).__init__()
         self.alpha = alpha
         self.tol = tol
         self.maxiter = maxiter
