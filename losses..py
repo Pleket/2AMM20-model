@@ -42,7 +42,7 @@ def bisection(eta_min, eta_max, f, tol, maxiter):
     return (eta_min+eta_max)/2
 
 class loss(torch.nn.Module):
-    def __init__(self, alpha, tol, maxiter, reg):
+    def __init__(self, alpha = 0.1, reg = 0.01, tol = 1e-4, maxiter=50):
         super(loss, self).__init__()
         self.alpha = alpha
         self.tol = tol
@@ -54,7 +54,7 @@ class loss(torch.nn.Module):
         reg = self.reg
         m = v.shape[0]
 
-        if self.reg>0:
+        if reg>0:
             if alpha == 1.0:
                 return torch.ones_like(v) / m
             def p(eta):
@@ -74,4 +74,6 @@ class loss(torch.nn.Module):
 
 
     def forward(self, v, p):
-        return cvar_value(p, v, self.reg)
+        with torch.no_grad():
+            p = self.response(v)
+            return cvar_value(p, v, self.reg)
