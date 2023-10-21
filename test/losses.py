@@ -4,10 +4,11 @@ import numpy as np
 def cvar_value(p, v, reg):
     """Returns <p, v> - reg * KL(p, uniform) for Torch tensors"""
     m = v.shape[0]
-
-    with torch.no_grad():
-        idx = torch.nonzero(p)  # where is annoyingly backwards incompatible
-        kl = np.log(m) + (p[idx] * torch.log(p[idx])).sum()
+    
+    #with torch.no_grad():
+    idx = torch.nonzero(p)  # where is annoyingly backwards incompatible
+    kl = np.log(m) + (p[idx] * torch.log(p[idx])).sum()    
+        
     print(p.shape, v.shape, kl)
     return torch.dot(p.squeeze(), v.squeeze()) - reg * kl
 
@@ -84,7 +85,6 @@ class Loss(torch.nn.Module):
 
 
     def forward(self, v):
-        with torch.no_grad():
-            p = self.response(v)
-            # print(p)
-            return cvar_value(p, v, self.reg)
+        #with torch.no_grad():
+        p = self.response(v)    
+        return cvar_value(p, v, self.reg)
