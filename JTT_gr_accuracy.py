@@ -16,13 +16,6 @@ import os
 import tarfile
 from PIL import Image
 
-#You can use this code when uploading the data into Jupyterhub. Upload
-#as a zipfile and then this code will extract it.
-# import zipfile as zf
-# files = zf.ZipFile("waterbird_complete95_2class.zip", 'r')
-# files.extractall('data')
-# files.close()
-
 device = torch.device("cuda" if torch.cuda.is_available() 
                                   else "cpu")
 
@@ -91,7 +84,7 @@ def preprocess(directory, batch_size, select_percentage = 100):
             shuffle=False),
         )
 
-def train_resnet50(train_loader, test_loader, model_path, epochs, learning_rate):
+def train_resnet50(train_loader, test_loader, model_path, epochs, learning_rate, cvar=False):
     num_classes = 2
     # Use GPU if available
     device = torch.device("cuda" if torch.cuda.is_available() 
@@ -108,9 +101,16 @@ def train_resnet50(train_loader, test_loader, model_path, epochs, learning_rate)
                                     nn.ReLU(),
                                     nn.Dropout(0.2),
                                     nn.Linear(512, num_classes),
-                                    nn.LogSoftmax(dim=1))
+                                    nn.LogSoftmax(dim=1)) #softmax or sigmoid? 
     
-    criterion = nn.CrossEntropyLoss()
+    if cvar==True:
+        criterion = nn.CrossEntropyLoss(reduction='none')
+        cvar_loss = Loss(alpha=0.001, reg=0.01, tol=1e-4, maxiter=50)
+    else:
+        criterion = nn.CrossEntropyLoss()
+        
+    criterion_test = nn.CrossEntropyLoss()
+    
     optimizer = optim.Adam(model.fc.parameters(), lr=learning_rate)
     model.to(device)
 
@@ -126,6 +126,8 @@ def train_resnet50(train_loader, test_loader, model_path, epochs, learning_rate)
             optimizer.zero_grad()
             logps = model.forward(inputs)
             loss = criterion(logps, labels)
+            if cvar == True:
+                loss = cvar_loss(loss)
             loss.backward()
             optimizer.step()
             running_loss += loss.item()
@@ -138,7 +140,7 @@ def train_resnet50(train_loader, test_loader, model_path, epochs, learning_rate)
                     for inputs, filenames, labels in test_loader:
                         inputs, labels = inputs.to(device), labels.to(device)
                         logps = model.forward(inputs)
-                        batch_loss = criterion(logps, labels)
+                        batch_loss = criterion_test(logps, labels)
                         test_loss += batch_loss.item()
                         
                         ps = torch.exp(logps)
@@ -243,26 +245,26 @@ path_to_data = 'data/waterbird_complete95_2class'
 train_loader, test_loader = preprocess(path_to_data ,batch_size = 32, select_percentage=100)
 filename_to_group_dict = filename_to_group_dict('metadata.csv')
 
-train_resnet50(train_loader, test_loader, 'JTT_one', epochs = 10, learning_rate = 0.002)
+train_resnet50(train_loader, test_loader, 'JTT_one', epochs = 5, learning_rate = 0.01, cvar=True)
 
 model = torch.load('JTT_one')
 
 accuracies_per_group_dict_one = compute_accuracy_per_group(model, test_loader, filename_to_group_dict)
 print(accuracies_per_group_dict_one)
 
-weights = get_misclassified_weights(model, train_loader, 2.5)
-sampler = WeightedRandomSampler(weights, ceil(sum(weights)), replacement=True)
+# weights = get_misclassified_weights(model, train_loader, 4)
+# sampler = WeightedRandomSampler(weights, ceil(sum(weights)), replacement=True)
 
-train_loader_new = DataLoader(
-            train_loader.dataset, 
-            batch_size=32, 
-            sampler=sampler,
-            shuffle=False)
-print("Now, length of train_loader is ", len(train_loader_new))
+# train_loader_new = DataLoader(
+#             train_loader.dataset, 
+#             batch_size=32, 
+#             sampler=sampler,
+#             shuffle=False)
+# print("Now, length of train_loader is ", len(train_loader_new))
 
-train_resnet50(train_loader_new, test_loader, 'JTT_two', epochs = 10, learning_rate = 0.002)
-model_twice = torch.load('JTT_two')
+# train_resnet50(train_loader_new, test_loader, 'JTT_two', epochs = 100, learning_rate = 0.001)
+# model_twice = torch.load('JTT_two')
 
-accuracies_per_group_dict_two = compute_accuracy_per_group(model_twice, test_loader, filename_to_group_dict)
+# accuracies_per_group_dict_two = compute_accuracy_per_group(model_twice, test_loader, filename_to_group_dict)
 
-print(accuracies_per_group_dict_two)
+# print(accuracies_per_group_dict_two)
