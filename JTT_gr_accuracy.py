@@ -12,6 +12,8 @@ import random
 import pandas as pd 
 import shutil
 import os
+from losses import Loss
+
 
 import tarfile
 from PIL import Image
@@ -231,7 +233,7 @@ def compute_accuracy_per_group(model, test_loader, filename_to_group_dict):
                 group_correct[group] += 1
             group_total[group] += 1
     
-    print(group_correct)
+    # print(group_correct)
             
     group_accuracies[0] = group_correct[0]/group_total[0]
     group_accuracies[1] = group_correct[1]/group_total[1]
@@ -240,10 +242,14 @@ def compute_accuracy_per_group(model, test_loader, filename_to_group_dict):
     
     return group_accuracies
 
-path_to_data = 'data/waterbird_complete95_2class'
 
-train_loader, test_loader = preprocess(path_to_data ,batch_size = 32, select_percentage=100)
-filename_to_group_dict = filename_to_group_dict('metadata.csv')
+
+path_to_data = 'C:/Users/ensin/OneDrive/Documenten/Universiteit/y2b1/Research Topics/project/waterbird_complete95_2class'
+
+
+
+train_loader, test_loader = preprocess(path_to_data ,batch_size = 32, select_percentage=10)
+filename_to_group_dict = filename_to_group_dict('C:/Users/ensin/OneDrive/Documenten/Universiteit/y2b1/Research Topics/project/waterbird_complete95_forest2water2/metadata.csv')
 
 train_resnet50(train_loader, test_loader, 'JTT_one', epochs = 5, learning_rate = 0.01, cvar=True)
 
